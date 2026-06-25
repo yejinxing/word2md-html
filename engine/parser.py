@@ -26,6 +26,9 @@ class SemanticParser:
             tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
             if tag == "p":
+                # 跳过 TOC 目录
+                if self._is_toc(element):
+                    continue
                 node = self._parse_paragraph(element)
                 if node:
                     ir.nodes.append(node)
@@ -37,7 +40,12 @@ class SemanticParser:
         return ir
 
     def _parse_paragraph(self, p_elem: ET.Element) -> IRNode | None:
-        """解析单个段落元素，识别标题/段落/页眉页脚。"""
+        """解析单个段落元素，识别标题/段落/图片/页眉页脚。"""
+        # 检查是否包含图片
+        image = self._detect_image(p_elem)
+        if image:
+            return image
+
         pPr = p_elem.find(DocxReader.qn("w:pPr"))
         style = ""
         outline_lvl = 0
@@ -78,6 +86,21 @@ class SemanticParser:
             return IRNode(type="heading", level=level, children=spans)
 
         return IRNode(type="paragraph", children=spans)
+
+    def _is_toc(self, p_elem: ET.Element) -> bool:
+        """检测段落是否为目录(TOC)内容。"""
+        instr_texts = p_elem.findall(f".//{DocxReader.qn('w:instrText')}")
+        for instr in instr_texts:
+            if instr.text and "TOC" in instr.text.upper():
+                return True
+        pPr = p_elem.find(DocxReader.qn("w:pPr"))
+        if pPr is not None:
+            pStyle = pPr.find(DocxReader.qn("w:pStyle"))
+            if pStyle is not None:
+                style = pStyle.attrib.get(DocxReader.qn("w:val"), "")
+                if "toc" in style.lower():
+                    return True
+        return False
 
     def _extract_spans(self, p_elem: ET.Element) -> list[Span]:
         """提取段落中所有 run 的 inline 格式。"""
@@ -135,6 +158,26 @@ class SemanticParser:
                 cells.append(TableCell(text=cell_text.strip(), colspan=colspan))
             rows.append(cells)
         return IRNode(type="table", children=rows)
+
+    def _detect_image(self, p_elem: ET.Element) -> IRNode | None:
+        """检测段落中的图片 (w:drawing → blip 嵌入)。"""
+        drawing = p_elem.find(DocxReader.qn("w:r"))
+        if drawing is None:
+            return None
+        # 深层搜索 blip 元素
+        blips = p_elem.findall(f".//{DocxReader.qn('a:blip')}")
+        if not blips:
+            return None
+        blip = blips[0]
+        embed = blip.attrib.get(f"{{{DocxReader.NS['r']}}}embed", "")
+        if not embed:
+            return None
+        # 获取图片扩展名
+        ext = self.reader.get_image_ext(embed)
+        return IRNode(
+            type="image",
+            attrs={"rId": embed, "ext": ext, "filename": f"image_{embed}{ext}"},
+        )
 
     def _extract_title(self) -> str:
         """从 docProps/core.xml 提取标题。"""

@@ -3,13 +3,7 @@
 import argparse
 import sys
 from pathlib import Path
-from engine import DocxReader, SemanticParser, HtmlEmitter, MarkdownEmitter, JsonEmitter
-
-EMITTERS = {
-    "html": (HtmlEmitter(), ".html"),
-    "markdown": (MarkdownEmitter(), ".md"),
-    "json": (JsonEmitter(), ".json"),
-}
+from engine import convert
 
 
 def main():
@@ -18,6 +12,8 @@ def main():
     parser.add_argument("-o", "--output", type=str, default=None, help="输出文件路径")
     parser.add_argument("--mode", type=str, default="html",
                         choices=["html", "markdown", "json"], help="输出格式 (默认: html)")
+    parser.add_argument("--no-images", action="store_true", help="不提取图片")
+    parser.add_argument("--images-dir", type=str, default=None, help="图片输出目录")
     parser.add_argument("--stdout", action="store_true", help="输出到标准输出")
 
     args = parser.parse_args()
@@ -26,22 +22,28 @@ def main():
         print(f"错误: 文件不存在 — {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    reader = DocxReader(str(input_path))
-    ir = SemanticParser(reader).parse()
-    emitter, ext = EMITTERS[args.mode]
+    result = convert(
+        input_path,
+        output_mode=args.mode,
+        extract_images=not args.no_images,
+        images_dir=args.images_dir,
+    )
 
     if args.mode == "json":
         import json
-        result = json.dumps(emitter.emit(ir), ensure_ascii=False, indent=2)
+        output_text = json.dumps(result["content"], ensure_ascii=False, indent=2)
     else:
-        result = emitter.emit(ir)
+        output_text = result["content"]
 
     if args.stdout:
-        print(result)
+        print(output_text)
     else:
-        output_path = Path(args.output or input_path.with_suffix(ext))
-        output_path.write_text(result, encoding="utf-8")
+        ext_map = {"html": ".html", "markdown": ".md", "json": ".json"}
+        output_path = Path(args.output or input_path.with_suffix(ext_map[args.mode]))
+        output_path.write_text(output_text, encoding="utf-8")
         print(f"转换完成: {input_path} → {output_path}")
+        if result["images"]:
+            print(f"提取图片: {len(result['images'])} 张")
 
 
 if __name__ == "__main__":

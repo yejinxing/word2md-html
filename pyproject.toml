@@ -26,6 +26,9 @@ word2md = "cli:main"
 where = ["."]
 exclude = ["tests*"]
 
+[tool.setuptools]
+py-modules = ["cli"]
+
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
