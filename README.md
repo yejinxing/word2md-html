@@ -1,4 +1,4 @@
-# word2md
+# word2md-html
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.138-teal?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -125,20 +125,48 @@ uvicorn api.app:app --host 0.0.0.0 --port 8088
 }
 ```
 
-### cURL 示例
+### 本地使用
 
 ```bash
-# HTML
-curl -X POST http://localhost:8088/api/v1/convert/html \
-  -F "file=@report.docx"
+# HTML（浏览器直接打开）
+word2md tests/test.docx -o tests/output/result.html
 
 # Markdown
-curl -X POST http://localhost:8088/api/v1/convert/markdown \
-  -F "file=@report.docx" -F "extract_images=false"
+word2md tests/test.docx --mode markdown -o tests/output/result.md
 
 # JSON
+word2md tests/test.docx --mode json -o tests/output/result.json
+
+# 不提取图片
+word2md tests/test.docx -o output.html --no-images
+
+# 批量转换
+word2md *.docx -d output/
+word2md docs/ -d output/ --mode markdown
+```
+
+### cURL 调用 API
+
+```bash
+# HTML — 保存到文件
+curl -X POST http://localhost:8088/api/v1/convert/html \
+  -F "file=@tests/test.docx" \
+  -o tests/output/api_result.html
+
+# Markdown — 保存到文件
+curl -X POST http://localhost:8088/api/v1/convert/markdown \
+  -F "file=@tests/test.docx" \
+  -o tests/output/api_result.md
+
+# JSON — 不提取图片
 curl -X POST http://localhost:8088/api/v1/convert/json \
-  -F "file=@report.docx" -F "skip_cover=true"
+  -F "file=@tests/test.docx" \
+  -F "extract_images=false" \
+  -o tests/output/api_result.json
+
+# 远程调用（替换为实际 IP）
+curl -X POST http://192.168.32.200:8088/api/v1/convert/markdown \
+  -F "file=@report.docx"
 ```
 
 ---
